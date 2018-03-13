@@ -1,27 +1,37 @@
 from __future__ import division
 from vtk.util.numpy_support import vtk_to_numpy
 from vtk.util.numpy_support import numpy_to_vtk
-from scikits.sparse.cholmod import cholesky
-from scipy.sparse import csc_matrix, diags, linalg as sla
+# from scikits.sparse.cholmod import cholesky
+from sksparse.cholmod import cholesky
+from scipy.sparse import csc_matrix, diags, issparse, linalg as sla
+# from scipy.sparse.linalg import spsolve
 import numpy as np
 import vtk
 import timeit
+import matplotlib.pyplot as plt
+from scipy.special import gamma
+from scipy.special import kv
+from math import pi
 
 # filename = "SourceVtp/largeMesh.vtp"
 # outputfilename = "largeRes.vtp"
 filename = "SourceVtp/simple.vtp"
-outputfilename = "largeRes.vtp"
-samplenum = 100
+outputfilename = "simpleRes.vtp"
+samplenum = 10000
 
-def check_correlation(X, npNodes):
-	ptsidx = np.arange(11) * 12 # choose points on the diagonal
-	ptsidx[1] = 2 # adjust with the real point lable
+def matern_covariance(d, nu=1.0, k=1.0):
+	var = gamma(nu) / (gamma(nu+1.0) * ((4*pi)**1.0) * k**(2*nu))
+	# print var
+	cov = 1.0 / (gamma(nu)*(2**(nu-1.0))) * ((k*d)**nu) * kv(nu,k*d)
+	# print cov
+	return cov
 
-	# ptsidx = np.arange(101) * 2 # choose points along the first row
-	# ptsidx[1] = 1 # adjust with the real point lable
+def check_correlation(X, npNodes, k):
+	ptsidx = np.random.choice(np.arange(1, len(npNodes)), 20)
 	corX = np.corrcoef(X)
 	distance = np.sqrt(np.sum((npNodes[ptsidx] - npNodes[0]) ** 2, axis=1))
-	plt.plot(distance, corX[0, ptsidx])
+	plt.plot(distance, corX[0, ptsidx], 'bo', markersize=3.0)
+	plt.plot(distance, matern_covariance(distance, nu=1.0, k=k), 'ro', markersize=3.0)
 	plt.ylabel('Correlation')
 	plt.xlabel('Distance')
 	plt.show()
@@ -31,7 +41,7 @@ def loc(indptr, indices, i, j):
 
 def main():
 
-	kappa = 0.5656
+	kappa = 7.0
 
 	start_time = timeit.default_timer()
 
@@ -98,7 +108,7 @@ def main():
 		indptr.extend([len(indices)])
 	rawC = np.zeros(len(indices))
 	rawG = np.zeros(len(indices))
-	rawCTuta = np.zeros(totalNodes)
+	# rawCTuta = np.zeros(totalNodes)
 
 	print timeit.default_timer() - start_time
 	start_time = timeit.default_timer()
@@ -106,15 +116,15 @@ def main():
 	print 'Assembling global matrix...'
 	# Generate C and G matrix.
 	cm = np.array([[2.0, 1.0, 1.0], [1.0, 2.0, 1.0], [1.0, 1.0, 2.0]])
-	dcm = np.array([1.0, 1.0, 1.0])
+	# dcm = np.array([1.0, 1.0, 1.0])
 	for icell in xrange(totalElms):
 		# Compute local matrix first.
 		localc = cm * npAreas[icell] / 12.0
-		localdc = dcm * npAreas[icell] / 3.0
+		# localdc = dcm * npAreas[icell] / 3.0
 		localg = np.dot(npEdges[icell], npEdges[icell].transpose()) / (4 * npAreas[icell])
 		# Assembly to the glabal matrix.
 		for i in xrange(3):
-			rawCTuta[npElms[icell, i]] += localdc[i]
+			# rawCTuta[npElms[icell, i]] += localdc[i]
 			for j in xrange(3):
 				rawindex = loc(indptr, indices, npElms[icell, i], npElms[icell, j])
 				rawC[rawindex] += localc[i, j]
@@ -127,18 +137,19 @@ def main():
 	start_time = timeit.default_timer()
 
 	print 'Creating inverse C...'
-	invCTuta = diags([1.0 / rawCTuta], [0], shape=(totalNodes, totalNodes))
+	invCTuta = diags([1.0 / C.sum(axis=1).transpose()], [0], shape=(totalNodes, totalNodes))
 
 	# print 'Computating C Inverse...'
 	# factorC = cholesky(C)
 	# invC = factorC.inv()
 
-	print timeit.default_timer() - start_time
+	print timeit.default_timer() - start_time	
 	start_time = timeit.default_timer()
 
 	# Compute Q matrix according to C and G.
 	print 'Computing K...'
 	K = (kappa**2)*C + G
+	# print K.todense()
 
 	print timeit.default_timer() - start_time
 	start_time = timeit.default_timer()
@@ -146,8 +157,8 @@ def main():
 	print 'Computing of Q...'
 	Q1 = K
 	# Q = (K.dot(invC)).dot(K)
-	# Q = (K.dot(invCTuta)).dot(K) # Q2
-	Q = (((K.dot(invCTuta)).dot(Q1)).dot(invCTuta)).dot(K)
+	Q = (K.dot(invCTuta)).dot(K) # Q2
+	# Q = (((K.dot(invCTuta)).dot(Q1)).dot(invCTuta)).dot(K)
 	# Q = (((K.dot(invC)).dot(Q1)).dot(invC)).dot(K)
 
 	print timeit.default_timer() - start_time
@@ -155,7 +166,7 @@ def main():
 
 	print 'Cholesky factor of Q...'
 	# Decomposition.
-	factorQ = cholesky(Q)
+	factorQ = cholesky(Q, ordering_method="natural")
 	# L = factorQ.L()
 	# print(factorQ.L())
 	# lu = sla.splu(Q)
@@ -172,12 +183,13 @@ def main():
 	start_time = timeit.default_timer()
 
 	print 'Solving upper triangular syms...'
-	X = factorQ.solve_Lt(Z)
+	X = factorQ.solve_Lt(Z, use_LDLt_decomposition=False)
+	# print np.allclose(, Z)
 
 	print timeit.default_timer() - start_time
 	start_time = timeit.default_timer()
 
-	print 'std: ', np.std(X[1:4], axis=1)
+	# print 'std: ', np.std(X[1:4], axis=1)
 
 	# Store back the random field.
 	print 'Exporting data...'
@@ -194,8 +206,8 @@ def main():
 
 	print timeit.default_timer() - start_time
 
-	# print 'Ploting...'
-	# check_correlation(X, npNodes)
+	print 'Ploting...'
+	check_correlation(X, npNodes, kappa)
 
 	# ----------------------------------------
 	# np.savetxt('large-nodes.out', npNodes)
