@@ -13,10 +13,10 @@ from scipy.special import gamma
 from scipy.special import kv
 from math import pi
 
-# filename = "SourceVtp/largeMesh.vtp"
-# outputfilename = "largeRes.vtp"
-filename = "SourceVtp/simple.vtp"
-outputfilename = "simpleRes.vtp"
+filename = "SourceVtp/largeMesh.vtp"
+outputfilename = "largeRes.vtp"
+# filename = "SourceVtp/simple.vtp"
+# outputfilename = "simpleRes.vtp"
 samplenum = 10000
 
 def matern_covariance(d, nu=1.0, k=1.0):
@@ -31,7 +31,7 @@ def check_correlation(X, npNodes, k):
 	corX = np.corrcoef(X)
 	distance = np.sqrt(np.sum((npNodes[ptsidx] - npNodes[0]) ** 2, axis=1))
 	plt.plot(distance, corX[0, ptsidx], 'bo', markersize=3.0)
-	plt.plot(distance, matern_covariance(distance, nu=1.0, k=k), 'ro', markersize=3.0)
+	plt.plot(distance, matern_covariance(distance, nu=1.0, k=k), 'ro', markersize=3.0) # nu=0.5 for 3-dim, 1.0 for 2-dim
 	plt.ylabel('Correlation')
 	plt.xlabel('Distance')
 	plt.show()
@@ -210,12 +210,12 @@ def main():
 	check_correlation(X, npNodes, kappa)
 
 	# ----------------------------------------
-	# np.savetxt('large-nodes.out', npNodes)
-	# np.savetxt('large-X-invCTuta.out', X[:,:100])
+	np.savetxt('large-nodes.out', npNodes)
+	np.savetxt('large-X-invCTuta.out', X[1:21,:])
 	# # Save the sparse info into file
 	# # np.savetxt('simple-sparseInfo.out', sparseInfo, fmt='%s')
-	# with open("simple-sparseInfo.out","w") as f:
-	# 	f.write("\n".join(" ".join(map(str, x)) for x in sparseInfo))
+	with open("large-sparseInfo.out","w") as f:
+		f.write("\n".join(" ".join(map(str, x)) for x in sparseInfo))
 	# ----------------------------------------
 
 if __name__ == '__main__':
