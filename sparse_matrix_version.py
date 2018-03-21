@@ -15,9 +15,10 @@ from math import pi
 
 # filename = "SourceVtp/largeMesh.vtp"
 # outputfilename = "largeRes.vtp"
+# samplenum = 100
 filename = "SourceVtp/simple.vtp"
 outputfilename = "simpleRes.vtp"
-samplenum = 10000
+samplenum = 100000
 
 def matern_covariance(d, nu=1.0, k=1.0):
 	var = gamma(nu) / (gamma(nu+1.0) * ((4*pi)**1.0) * k**(2*nu))
@@ -34,6 +35,17 @@ def check_correlation(X, npNodes, k):
 	plt.plot(distance, matern_covariance(distance, nu=1.0, k=k), 'ro', markersize=3.0, label='Matern') # nu=0.5 for 3-dim, 1.0 for 2-dim
 	plt.ylabel('Correlation')
 	plt.xlabel('Distance')
+	plt.legend()
+	plt.show()
+
+def check_variance(X, dim, nu, k):
+	# Variance of the realizations
+	varX = np.var(X, axis=1)
+	plt.plot(np.arange(len(X)), varX, 'bo', label='generation')
+	# Theoretically
+	var = gamma(nu) / (gamma(nu+dim/2)*(4*pi)**(dim/2)*k**(2*nu))
+	plt.plot(np.arange(len(X)), var*np.ones(len(X)), label='theoretical')
+
 	plt.legend()
 	plt.show()
 
@@ -196,6 +208,44 @@ def main():
 	start_time = timeit.default_timer()
 
 	# # ----------------------------------------------------
+	# # Calculate the convergence to matern corvariance
+	# # Prepare the points used to check the cov difference
+	# ptsidx = np.random.choice(np.arange(1, len(npNodes)), 100)
+	# distance = np.sqrt(np.sum((npNodes[ptsidx] - npNodes[0]) ** 2, axis=1))
+	# materncov = matern_covariance(distance, nu=1.0, k=kappa)
+	# # Start to calculate with different sample size
+	# samplenums = np.array([500, 1000, 10000, 50000, 100000, 200000, 500000, 1000000, 2000000, 5000000])
+	# diffs = np.zeros(len(samplenums))
+	# for i in xrange(len(samplenums)):
+		
+	# 	print 'Generating samples...'
+	# 	# Generate normal distrib random nums & combine.
+	# 	Z = np.random.normal(size=(totalNodes, samplenums[i]))
+
+	# 	print timeit.default_timer() - start_time
+	# 	start_time = timeit.default_timer()
+
+	# 	print 'Solving upper triangular syms...'
+	# 	X = factorQ.solve_Lt(Z, use_LDLt_decomposition=False)
+	# 	X = X[PT]
+	# 	# print np.allclose(, Z)
+
+	# 	print timeit.default_timer() - start_time
+	# 	start_time = timeit.default_timer()
+
+	# 	# Calculate the covariance and get the difference
+	# 	corX = np.corrcoef(X)
+	# 	diffs[i] = np.linalg.norm(materncov - corX[0, ptsidx])
+
+	# plt.plot(samplenums, diffs)
+	# plt.xlabel('sample number')
+	# plt.ylabel('norm of difference with matern covariance')
+	# plt.show()
+
+	# return
+	# ----------------------------------------------------
+
+	# # ----------------------------------------------------
 	# # Calculate without permutation
 	# factorQOrigin = cholesky(Q, ordering_method="natural")
 	# XOrigin = factorQOrigin.solve_Lt(Z, use_LDLt_decomposition=False)
@@ -236,7 +286,9 @@ def main():
 	print timeit.default_timer() - start_time
 
 	print 'Ploting...'
-	check_correlation(X, npNodes, kappa)
+	# check_correlation(X, npNodes, kappa)
+	# check_variance(X, 2, 1.0, kappa)
+	check_variance(X, 3, 0.5, kappa)
 
 	# # ----------------------------------------
 	# np.savetxt('large-nodes.out', npNodes)
