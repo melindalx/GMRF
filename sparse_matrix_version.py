@@ -13,10 +13,10 @@ from scipy.special import gamma
 from scipy.special import kv
 from math import pi
 
-filename = "SourceVtp/largeMesh.vtp"
-outputfilename = "largeRes.vtp"
-# filename = "SourceVtp/simple.vtp"
-# outputfilename = "simpleRes.vtp"
+# filename = "SourceVtp/largeMesh.vtp"
+# outputfilename = "largeRes.vtp"
+filename = "SourceVtp/simple.vtp"
+outputfilename = "simpleRes.vtp"
 samplenum = 10000
 
 def matern_covariance(d, nu=1.0, k=1.0):
@@ -30,10 +30,11 @@ def check_correlation(X, npNodes, k):
 	ptsidx = np.random.choice(np.arange(1, len(npNodes)), 20)
 	corX = np.corrcoef(X)
 	distance = np.sqrt(np.sum((npNodes[ptsidx] - npNodes[0]) ** 2, axis=1))
-	plt.plot(distance, corX[0, ptsidx], 'bo', markersize=3.0)
-	plt.plot(distance, matern_covariance(distance, nu=1.0, k=k), 'ro', markersize=3.0) # nu=0.5 for 3-dim, 1.0 for 2-dim
+	plt.plot(distance, corX[0, ptsidx], 'bo', markersize=3.0, label='generation')
+	plt.plot(distance, matern_covariance(distance, nu=1.0, k=k), 'ro', markersize=3.0, label='Matern') # nu=0.5 for 3-dim, 1.0 for 2-dim
 	plt.ylabel('Correlation')
 	plt.xlabel('Distance')
+	plt.legend()
 	plt.show()
 
 def loc(indptr, indices, i, j):
@@ -166,11 +167,15 @@ def main():
 
 	print 'Cholesky factor of Q...'
 	# Decomposition.
-	factorQ = cholesky(Q, ordering_method="natural")
+	factorQ = cholesky(Q) # ordering_method="natural"
 	# L = factorQ.L()
 	# print(factorQ.L())
 	# lu = sla.splu(Q)
 	# print(lu.L)
+	# -- Get the permutation --
+	P = factorQ.P()
+	PT = np.zeros(len(P), dtype=int)
+	PT[P] = np.arange(len(P))
 
 	print timeit.default_timer() - start_time
 	start_time = timeit.default_timer()
@@ -184,10 +189,34 @@ def main():
 
 	print 'Solving upper triangular syms...'
 	X = factorQ.solve_Lt(Z, use_LDLt_decomposition=False)
+	X = X[PT]
 	# print np.allclose(, Z)
 
 	print timeit.default_timer() - start_time
 	start_time = timeit.default_timer()
+
+	# # ----------------------------------------------------
+	# # Calculate without permutation
+	# factorQOrigin = cholesky(Q, ordering_method="natural")
+	# XOrigin = factorQOrigin.solve_Lt(Z, use_LDLt_decomposition=False)
+
+	# # Plotting
+	# np.random.seed(2018)
+	# ptsidx = np.random.choice(np.arange(1, len(npNodes)), 20)
+	# distance = np.sqrt(np.sum((npNodes[ptsidx] - npNodes[0]) ** 2, axis=1))
+	# corX = np.corrcoef(X)
+	# corXOrigin = np.corrcoef(XOrigin)
+	# plt.plot(distance, corX[0, ptsidx], 'bo', markersize=3.0, label='use back permutation')
+	# plt.plot(distance, corXOrigin[0, ptsidx], 'ro', markersize=3.0, label='origin without permutation')
+	# plt.ylabel('Correlation')
+	# plt.xlabel('Distance')
+	# plt.legend()
+	# plt.show()
+
+	# print 'difference btw origin and back permutation: ', np.linalg.norm(corX[0]-corXOrigin[0])
+
+	# return
+	# # ----------------------------------------------------
 
 	# print 'std: ', np.std(X[1:4], axis=1)
 
@@ -209,14 +238,14 @@ def main():
 	print 'Ploting...'
 	check_correlation(X, npNodes, kappa)
 
-	# ----------------------------------------
-	np.savetxt('large-nodes.out', npNodes)
-	np.savetxt('large-X-invCTuta.out', X[1:21,:])
-	# # Save the sparse info into file
-	# # np.savetxt('simple-sparseInfo.out', sparseInfo, fmt='%s')
-	with open("large-sparseInfo.out","w") as f:
-		f.write("\n".join(" ".join(map(str, x)) for x in sparseInfo))
-	# ----------------------------------------
+	# # ----------------------------------------
+	# np.savetxt('large-nodes.out', npNodes)
+	# np.savetxt('large-X-invCTuta.out', Y[1:21,:])
+	# # # Save the sparse info into file
+	# # # np.savetxt('simple-sparseInfo.out', sparseInfo, fmt='%s')
+	# with open("large-sparseInfo.out","w") as f:
+	# 	f.write("\n".join(" ".join(map(str, x)) for x in sparseInfo))
+	# # ----------------------------------------
 
 if __name__ == '__main__':
 	main()
